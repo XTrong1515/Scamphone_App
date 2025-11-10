@@ -13,24 +13,35 @@ export interface UserProfile {
   };
 }
 
+export interface UpdateProfileData {
+  name?: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface UserPreferences {
+  notifications: boolean;
+  newsletter: boolean;
+}
+
 export const profileService = {
-  // Lấy thông tin profile
-  getProfile: async (): Promise<UserProfile> => {
-    const response = await api.get('/api/v1/users/profile');
+  // Get user profile
+  getProfile: async () => {
+    const response = await api.get('/users/profile');
     return response.data;
   },
 
-  // Cập nhật thông tin profile
-  updateProfile: async (profileData: Partial<UserProfile>): Promise<UserProfile> => {
-    const response = await api.put('/api/v1/users/profile', profileData);
+  // Update user profile
+  updateProfile: async (profileData: UpdateProfileData) => {
+    const response = await api.put('/users/profile', profileData);
     return response.data;
   },
 
   // Upload avatar
-  uploadAvatar: async (file: File): Promise<{ avatarUrl: string }> => {
+  uploadAvatar: async (file: File) => {
     const formData = new FormData();
     formData.append('avatar', file);
-    const response = await api.post('/api/v1/users/profile/avatar', formData, {
+    const response = await api.post('/users/profile/avatar', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -38,18 +49,18 @@ export const profileService = {
     return response.data;
   },
 
-  // Cập nhật preferences
-  updatePreferences: async (preferences: UserProfile['preferences']): Promise<UserProfile> => {
-    const response = await api.put('/api/v1/users/profile/preferences', preferences);
+  // Update preferences
+  updatePreferences: async (preferences: UserPreferences) => {
+    const response = await api.put('/users/profile/preferences', preferences);
     return response.data;
   },
 
-  // Thay đổi mật khẩu
+  // Change password
   changePassword: async (data: {
     currentPassword: string;
     newPassword: string;
-  }): Promise<{ message: string }> => {
-    const response = await api.post('/api/v1/users/profile/change-password', data);
+  }) => {
+    const response = await api.post('/users/profile/change-password', data);
     return response.data;
-  }
+  },
 };

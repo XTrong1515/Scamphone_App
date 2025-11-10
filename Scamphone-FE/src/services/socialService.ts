@@ -38,12 +38,12 @@ export interface APIError {
 export const socialService = {
   // Comments
   getProductComments: async (productId: string): Promise<ProductComment[]> => {
-    const response = await api.get(`/api/v1/products/${productId}/comments`);
+    const response = await api.get(`/products/${productId}/comments`);
     return response.data;
   },
 
   createComment: async (productId: string, content: string): Promise<ProductComment> => {
-    const response = await api.post(`/api/v1/products/${productId}/comments`, {
+    const response = await api.post(`/products/${productId}/comments`, {
       content
     });
     return response.data;
@@ -55,7 +55,7 @@ export const socialService = {
     content: string
   ): Promise<ProductComment> => {
     const response = await api.post(
-      `/api/v1/products/${productId}/comments/${commentId}/replies`,
+      `/products/${productId}/comments/${commentId}/replies`,
       { content }
     );
     return response.data;
@@ -66,35 +66,35 @@ export const socialService = {
     commentId: string
   ): Promise<ProductComment> => {
     const response = await api.post(
-      `/api/v1/products/${productId}/comments/${commentId}/like`
+      `/products/${productId}/comments/${commentId}/like`
     );
     return response.data;
   },
 
   // Favorites
   addToFavorites: async (productId: string): Promise<void> => {
-    await api.post(`/api/v1/users/favorites/${productId}`);
+    await api.post(`/users/favorites/${productId}`);
   },
 
   removeFromFavorites: async (productId: string): Promise<void> => {
-    await api.delete(`/api/v1/users/favorites/${productId}`);
+    await api.delete(`/users/favorites/${productId}`);
   },
 
   getFavorites: async (): Promise<any[]> => {
-    const response = await api.get('/api/v1/users/favorites');
+    const response = await api.get('/users/favorites');
     return response.data;
   },
 
   // Sharing
   getShareLink: async (productId: string): Promise<ShareResponse> => {
-    const response = await api.get(`/api/v1/products/${productId}/share`);
+    const response = await api.get(`/products/${productId}/share`);
     return response.data;
   },
 
   // Social Stats
   getProductSocialStats: async (productId: string): Promise<SocialStats> => {
     try {
-      const response = await api.get(`/api/v1/products/${productId}/social-stats`);
+      const response = await api.get(`/products/${productId}/social-stats`);
       return response.data;
     } catch (error: any) {
       throw {

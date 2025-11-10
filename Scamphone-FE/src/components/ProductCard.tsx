@@ -15,6 +15,8 @@ interface Product {
   discount?: number;
   isHot?: boolean;
   isNewProduct?: boolean;
+  status?: 'active' | 'inactive' | 'out_of_stock';
+  stock?: number;
 }
 
 interface ProductCardProps {
@@ -39,27 +41,49 @@ export function ProductCard({ product, onAddToCart, onProductClick }: ProductCar
     onAddToCart(product);
   };
 
+  // Check if product is available for purchase
+  const isOutOfStock = product.stock !== undefined && product.stock === 0;
+  const isInactive = product.status === 'inactive';
+  const isUnavailable = isOutOfStock || isInactive;
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 overflow-hidden group">
       <div className="relative cursor-pointer" onClick={() => onProductClick(product)}>
         <ImageWithFallback
           src={product.image}
           alt={product.name}
-          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+          className={`w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300 ${
+            isUnavailable ? 'opacity-60' : ''
+          }`}
         />
-        {product.discount && (
+        {product.discount && !isUnavailable && (
           <Badge className="absolute top-2 left-2 bg-red-500 text-white">
             -{product.discount}%
           </Badge>
         )}
-        {product.isNewProduct && (
+        {product.isNewProduct && !isUnavailable && (
           <Badge className="absolute top-2 left-2 bg-green-500 text-white">
             NEW
           </Badge>
         )}
-        {product.isHot && (
+        {product.isHot && !isUnavailable && (
           <Badge className="absolute top-2 right-2 bg-orange-500 text-white">
             HOT
+          </Badge>
+        )}
+        {isOutOfStock && (
+          <Badge className="absolute top-2 left-2 bg-gray-500 text-white">
+            Hết hàng
+          </Badge>
+        )}
+        {isInactive && !isOutOfStock && (
+          <Badge className="absolute top-2 left-2 bg-gray-500 text-white">
+            Ngưng bán
+          </Badge>
+        )}
+        {product.stock !== undefined && product.stock > 0 && product.stock <= 5 && !isUnavailable && (
+          <Badge className="absolute top-2 left-2 bg-yellow-500 text-white">
+            Chỉ còn {product.stock}
           </Badge>
         )}
       </div>
@@ -104,10 +128,17 @@ export function ProductCard({ product, onAddToCart, onProductClick }: ProductCar
         <Button
           ref={buttonRef}
           onClick={handleAddToCart}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-2"
+          disabled={isUnavailable}
+          className={`w-full flex items-center justify-center space-x-2 ${
+            isUnavailable
+              ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
         >
           <ShoppingCart className="w-4 h-4" />
-          <span>Thêm vào giỏ</span>
+          <span>
+            {isOutOfStock ? 'Hết hàng' : isInactive ? 'Ngưng bán' : 'Thêm vào giỏ'}
+          </span>
         </Button>
       </div>
       

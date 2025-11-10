@@ -37,7 +37,7 @@ export const searchService = {
     query: string,
     filters: SearchFilters
   ): Promise<SearchResult> => {
-    const response = await api.get('/api/v1/products/search', {
+    const response = await api.get('/products/search', {
       params: {
         q: query,
         ...filters,
@@ -52,19 +52,19 @@ export const searchService = {
 
   // Lấy danh sách thương hiệu
   getBrands: async (): Promise<string[]> => {
-    const response = await api.get('/api/v1/products/brands');
+    const response = await api.get('/products/brands');
     return response.data;
   },
 
   // Lấy khoảng giá sản phẩm
   getPriceRange: async (): Promise<{ min: number; max: number }> => {
-    const response = await api.get('/api/v1/products/price-range');
+    const response = await api.get('/products/price-range');
     return response.data;
   },
 
   // Gợi ý tìm kiếm
   getSuggestions: async (query: string): Promise<string[]> => {
-    const response = await api.get('/api/v1/products/suggestions', {
+    const response = await api.get('/products/suggestions', {
       params: { q: query }
     });
     return response.data;

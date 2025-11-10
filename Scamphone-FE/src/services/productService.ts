@@ -35,6 +35,7 @@ export const productService = {
     maxPrice?: number;
     brand?: string;
     sort?: string;
+    status?: 'active' | 'inactive' | 'out_of_stock';
   }) {
     const { data } = await api.get<{ 
       products: Product[];
@@ -57,6 +58,11 @@ export const productService = {
 
   async getHotProducts() {
     const { data } = await api.get<{ products: Product[] }>('/products/hot');
+    return data;
+  },
+
+  async updateProductStatus(id: string, status: 'active' | 'inactive' | 'out_of_stock') {
+    const { data } = await api.put<Product>(`/products/${id}`, { status });
     return data;
   }
 };

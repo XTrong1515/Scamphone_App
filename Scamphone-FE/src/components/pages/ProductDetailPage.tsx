@@ -31,6 +31,7 @@ import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { AddToCartAnimation } from "../AddToCartAnimation";
 
 interface Product {
+  id: string;
   _id: string;
   name: string;
   price: number;
@@ -42,6 +43,15 @@ interface Product {
   description?: string;
   specifications?: { [key: string]: string };
   images?: string[];
+  attributes?: Array<{ name: string; values: string[] }>;
+  variants?: Array<{
+    attributes: { [key: string]: string };
+    price: number;
+    originalPrice?: number;
+    stock: number;
+    sku?: string;
+    image?: string;
+  }>;
 }
 
 interface ProductDetailPageProps {
@@ -79,10 +89,76 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
     rating: 5,
     comment: ''
   });
+  
+  // Dynamic variant selection state
+  const [selectedAttributes, setSelectedAttributes] = useState<{ [key: string]: string }>({});
+  const [selectedVariant, setSelectedVariant] = useState<{
+    attributes: { [key: string]: string };
+    price: number;
+    originalPrice?: number;
+    stock: number;
+    sku?: string;
+    image?: string;
+  } | null>(null);
+  
   const [selectedColor, setSelectedColor] = useState("Đen");
   const [selectedStorage, setSelectedStorage] = useState("256GB");
   const [triggerAnimation, setTriggerAnimation] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Initialize selected attributes and variant
+  useEffect(() => {
+    if (product.attributes && product.attributes.length > 0 && product.variants && product.variants.length > 0) {
+      // Set default selected attributes (first value of each attribute)
+      const defaultAttrs: { [key: string]: string } = {};
+      product.attributes.forEach(attr => {
+        if (attr.values && attr.values.length > 0) {
+          defaultAttrs[attr.name] = attr.values[0];
+        }
+      });
+      setSelectedAttributes(defaultAttrs);
+      
+      // Find matching variant
+      const variant = product.variants.find(v => 
+        JSON.stringify(v.attributes) === JSON.stringify(defaultAttrs)
+      );
+      setSelectedVariant(variant || null);
+    }
+  }, [product]);
+
+  // Update selected variant when attributes change
+  const handleAttributeSelect = (attrName: string, value: string) => {
+    const newAttrs = { ...selectedAttributes, [attrName]: value };
+    setSelectedAttributes(newAttrs);
+    
+    // Find matching variant
+    const variant = product.variants?.find(v => 
+      JSON.stringify(v.attributes) === JSON.stringify(newAttrs)
+    );
+    setSelectedVariant(variant || null);
+  };
+
+  // Get current price from variant or product
+  const getCurrentPrice = () => {
+    if (selectedVariant) {
+      return selectedVariant.price;
+    }
+    return product.price;
+  };
+
+  const getCurrentOriginalPrice = () => {
+    if (selectedVariant) {
+      return selectedVariant.originalPrice || selectedVariant.price;
+    }
+    return product.originalPrice || product.price;
+  };
+
+  const getCurrentStock = () => {
+    if (selectedVariant) {
+      return selectedVariant.stock;
+    }
+    return 999; // Default for products without variants
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -92,8 +168,10 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
   };
 
   const images = product.images || [product.image, product.image, product.image];
-  const colors = ["Đen", "Trắng", "Xanh", "Tím"];
-  const storageOptions = ["128GB", "256GB", "512GB", "1TB"];
+  
+  // Remove hardcoded colors/storage - will use dynamic attributes
+  // const colors = ["Đen", "Trắng", "Xanh", "Tím"];
+  // const storageOptions = ["128GB", "256GB", "512GB", "1TB"];
 
   const specifications = product.specifications || {
     "Màn hình": "6.7 inch, Super Retina XDR",
@@ -161,10 +239,24 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
   };
 
   const handleAddToCart = () => {
+    // Check stock for variant
+    if (selectedVariant && selectedVariant.stock <= 0) {
+      alert('Sản phẩm này hiện đã hết hàng!');
+      return;
+    }
+    
     setTriggerAnimation(true);
     const productToAdd = {
       ...product,
-      quantity
+      quantity,
+      // Include variant info if selected
+      ...(selectedVariant && {
+        selectedVariant: {
+          attributes: selectedAttributes,
+          price: selectedVariant.price,
+          sku: selectedVariant.sku
+        }
+      })
     };
     onAddToCart(productToAdd);
   };
@@ -207,47 +299,47 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Breadcrumb */}
-        <div className="flex items-center mb-6">
+        <div className="flex items-center mb-4 sm:mb-6">
           <Button
             variant="ghost"
             onClick={() => onPageChange('home')}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-2 text-sm sm:text-base"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-6 sm:mb-8">
           {/* Images */}
-          <div className="space-y-4">
-            <div className="relative">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="relative bg-white rounded-lg p-2 sm:p-4">
               <ImageWithFallback
                 src={images[selectedImage]}
                 alt={product.name}
-                className="w-full h-96 object-cover rounded-lg transition-transform duration-300 hover:scale-105"
+                className="w-full h-64 sm:h-80 lg:h-96 object-contain rounded-lg transition-transform duration-300 hover:scale-105"
               />
               {product.discount && (
-                <Badge className="absolute top-4 left-4 bg-red-500 text-white">
+                <Badge className="absolute top-4 left-4 bg-red-500 text-white text-xs sm:text-sm">
                   -{product.discount}%
                 </Badge>
               )}
               {product.isHot && (
-                <Badge className="absolute top-4 right-4 bg-orange-500 text-white">
+                <Badge className="absolute top-4 right-4 bg-orange-500 text-white text-xs sm:text-sm">
                   HOT
                 </Badge>
               )}
             </div>
             
-            <div className="flex space-x-2 overflow-x-auto">
+            <div className="flex space-x-2 overflow-x-auto pb-2">
               {images.map((image, index) => (
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
-                  className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
-                    selectedImage === index ? 'border-blue-500' : 'border-gray-200'
+                  className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                    selectedImage === index ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-400'
                   }`}
                 >
                   <ImageWithFallback
@@ -261,123 +353,118 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
           </div>
 
           {/* Product Info */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div>
-              <h1 className="text-2xl font-bold mb-2">{product.name}</h1>
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-4 h-4 ${
-                        i < Math.floor(product.rating)
-                          ? 'text-yellow-400 fill-current'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">{product.name}</h1>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
+                          i < Math.floor(product.rating)
+                            ? 'text-yellow-400 fill-current'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs sm:text-sm text-gray-600">({product.rating}) | {totalReviews} đánh giá</span>
                 </div>
-                <span className="text-sm text-gray-600">({product.rating}) | {totalReviews} đánh giá</span>
               </div>
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                <span>{socialStats.commentCount} bình luận</span>
-                <span>{socialStats.favoriteCount} lượt thích</span>
-                <span>{socialStats.shareCount} lượt chia sẻ</span>
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600">
+                <span>💬 {socialStats.commentCount} bình luận</span>
+                <span>❤️ {socialStats.favoriteCount} lượt thích</span>
+                <span>📤 {socialStats.shareCount} chia sẻ</span>
               </div>
             </div>
 
             {/* Price */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-4">
-                <span className="text-3xl font-bold text-blue-600">
-                  {formatPrice(product.price)}
+            <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 sm:p-6 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-3">
+                <span className="text-2xl sm:text-3xl font-bold text-red-600">
+                  {formatPrice(getCurrentPrice())}
                 </span>
-                {product.originalPrice && (
-                  <span className="text-xl text-gray-500 line-through">
-                    {formatPrice(product.originalPrice)}
+                {getCurrentOriginalPrice() !== getCurrentPrice() && (
+                  <span className="text-lg sm:text-xl text-gray-500 line-through">
+                    {formatPrice(getCurrentOriginalPrice())}
                   </span>
                 )}
               </div>
-              {product.discount && (
-                <p className="text-green-600">
-                  Tiết kiệm: {formatPrice((product.originalPrice || 0) - product.price)}
+              {getCurrentOriginalPrice() !== getCurrentPrice() && (
+                <p className="text-sm sm:text-base text-green-600 mt-1">
+                  💰 Tiết kiệm: {formatPrice(getCurrentOriginalPrice() - getCurrentPrice())}
+                </p>
+              )}
+              {selectedVariant && (
+                <p className="text-xs sm:text-sm text-gray-600 mt-2">
+                  SKU: {selectedVariant.sku || 'N/A'} | Còn lại: {selectedVariant.stock} sản phẩm
                 </p>
               )}
             </div>
 
-            {/* Options */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium mb-2">Màu sắc:</h3>
-                <div className="flex space-x-2">
-                  {colors.map((color) => (
-                    <Button
-                      key={color}
-                      variant={selectedColor === color ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedColor(color)}
-                      className={selectedColor === color ? "bg-blue-600" : ""}
-                    >
-                      {color}
-                    </Button>
-                  ))}
-                </div>
+            {/* Dynamic Variant Selector */}
+            {product.attributes && product.attributes.length > 0 && (
+              <div className="space-y-3 sm:space-y-4">
+                {product.attributes.map((attr) => (
+                  <div key={attr.name} className="bg-white p-3 sm:p-4 rounded-lg">
+                    <h3 className="font-medium mb-2 text-sm sm:text-base">{attr.name}:</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {attr.values.map((value) => (
+                        <Button
+                          key={value}
+                          variant={selectedAttributes[attr.name] === value ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleAttributeSelect(attr.name, value)}
+                          className={`text-xs sm:text-sm ${selectedAttributes[attr.name] === value ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                        >
+                          {value}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
+            )}
 
-              <div>
-                <h3 className="font-medium mb-2">Dung lượng:</h3>
-                <div className="flex space-x-2">
-                  {storageOptions.map((storage) => (
-                    <Button
-                      key={storage}
-                      variant={selectedStorage === storage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedStorage(storage)}
-                      className={selectedStorage === storage ? "bg-blue-600" : ""}
-                    >
-                      {storage}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-medium mb-2">Số lượng:</h3>
-                <div className="flex items-center space-x-2">
+            {/* Quantity */}
+            <div className="bg-white p-3 sm:p-4 rounded-lg">
+              <h3 className="font-medium mb-2 text-sm sm:text-base">Số lượng:</h3>
+              <div className="flex items-center space-x-3">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-8 h-8 p-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 p-0"
                   >
-                    <Minus className="w-4 h-4" />
+                    <Minus className="w-3 h-3 sm:w-4 sm:h-4" />
                   </Button>
-                  <span className="w-12 text-center">{quantity}</span>
+                  <span className="w-12 sm:w-16 text-center font-semibold text-base sm:text-lg">{quantity}</span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-8 h-8 p-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 p-0"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                   </Button>
                 </div>
-              </div>
             </div>
 
             {/* Actions */}
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <Button
                 ref={buttonRef}
                 onClick={handleAddToCart}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-2"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-2 text-sm sm:text-base py-5 sm:py-6 shadow-lg hover:shadow-xl transition-all"
                 size="lg"
               >
-                <ShoppingCart className="w-5 h-5" />
-                <span>Thêm vào giỏ hàng</span>
+                <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="font-semibold">Thêm vào giỏ hàng</span>
               </Button>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 <FavoriteButton
                   productId={product._id}
                   isFavorited={isFavorited}
@@ -386,10 +473,10 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
                 />
                 <Button 
                   variant="outline" 
-                  className="flex items-center justify-center space-x-2"
+                  className="flex items-center justify-center space-x-2 text-sm sm:text-base"
                   onClick={() => setIsShareDialogOpen(true)}
                 >
-                  <Share2 className="w-4 h-4" />
+                  <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>Chia sẻ</span>
                 </Button>
               </div>
@@ -405,23 +492,31 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
             </div>
 
             {/* Benefits */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
+            <Card className="shadow-md">
+              <CardContent className="p-3 sm:p-4 space-y-2 sm:space-y-3">
                 <div className="flex items-center space-x-3">
-                  <Truck className="w-5 h-5 text-green-600" />
-                  <span className="text-sm">Miễn phí vận chuyển toàn quốc</span>
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Miễn phí vận chuyển toàn quốc</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Shield className="w-5 h-5 text-blue-600" />
-                  <span className="text-sm">Bảo hành chính hãng 12 tháng</span>
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Bảo hành chính hãng 12 tháng</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <RotateCcw className="w-5 h-5 text-purple-600" />
-                  <span className="text-sm">Đổi trả miễn phí trong 7 ngày</span>
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                    <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Đổi trả miễn phí trong 7 ngày</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Phone className="w-5 h-5 text-orange-600" />
-                  <span className="text-sm">Hỗ trợ kỹ thuật 24/7</span>
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                    <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                  </div>
+                  <span className="text-xs sm:text-sm font-medium">Hỗ trợ kỹ thuật 24/7</span>
                 </div>
               </CardContent>
             </Card>
@@ -429,19 +524,19 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
         </div>
 
         {/* Tabs */}
-        <Card>
+        <Card className="shadow-md">
           <CardContent className="p-0">
             <Tabs defaultValue="description" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="description">Mô tả sản phẩm</TabsTrigger>
-                <TabsTrigger value="specifications">Thông số kỹ thuật</TabsTrigger>
-                <TabsTrigger value="reviews">Đánh giá ({totalReviews})</TabsTrigger>
-                <TabsTrigger value="comments">Bình luận ({socialStats.commentCount})</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+                <TabsTrigger value="description" className="text-xs sm:text-sm py-2 sm:py-3">Mô tả</TabsTrigger>
+                <TabsTrigger value="specifications" className="text-xs sm:text-sm py-2 sm:py-3">Thông số</TabsTrigger>
+                <TabsTrigger value="reviews" className="text-xs sm:text-sm py-2 sm:py-3">Đánh giá ({totalReviews})</TabsTrigger>
+                <TabsTrigger value="comments" className="text-xs sm:text-sm py-2 sm:py-3">Bình luận ({socialStats.commentCount})</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="description" className="p-6">
+              <TabsContent value="description" className="p-4 sm:p-6">
                 <div className="prose max-w-none">
-                  <p className="text-gray-700 leading-relaxed">
+                  <p className="text-sm sm:text-base text-gray-700 leading-relaxed">
                     {product.description || 
                     `${product.name} là sản phẩm công nghệ hàng đầu với thiết kế hiện đại và tính năng vượt trội. 
                     Sản phẩm được thiết kế với chất liệu cao cấp, đảm bảo độ bền và tính thẩm mỹ cao. 
@@ -451,12 +546,12 @@ export function ProductDetailPage({ product, user, onPageChange, onAddToCart }: 
                 </div>
               </TabsContent>
               
-              <TabsContent value="specifications" className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TabsContent value="specifications" className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {Object.entries(specifications).map(([key, value]) => (
-                    <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium text-gray-700">{key}:</span>
-                      <span className="text-gray-900">{value}</span>
+                    <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 rounded-lg gap-1 sm:gap-0">
+                      <span className="font-medium text-gray-700 text-xs sm:text-sm">{key}:</span>
+                      <span className="text-gray-900 text-sm sm:text-base">{value}</span>
                     </div>
                   ))}
                 </div>

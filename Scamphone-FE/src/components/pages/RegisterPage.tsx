@@ -5,12 +5,13 @@ import { Label } from "../ui/label";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Loader2 } from "lucide-react";
 import { userService } from "../../services/userService";
+import { User } from "../../types/user";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Eye, EyeOff, Phone, ArrowLeft } from "lucide-react";
 
 interface RegisterPageProps {
   onPageChange: (page: string) => void;
-  onLogin: (user: any) => void;
+  onLogin: (user: User) => void;
 }
 
 export function RegisterPage({ onPageChange, onLogin }: RegisterPageProps) {
@@ -64,7 +65,17 @@ export function RegisterPage({ onPageChange, onLogin }: RegisterPageProps) {
         phone: form.phone
       });
       
-      onLogin(user);
+      // Map backend user format to App user format
+      const mappedUser: User = {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        avatar: '',
+        role: user.role
+      };
+      
+      onLogin(mappedUser);
       onPageChange('home');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');

@@ -27,6 +27,8 @@ import { FilterSidebar } from "../FilterSidebar";
 import { Pagination } from "../ui/pagination";
 import { Loader2 } from "lucide-react";
 import { searchService, SearchFilters, SearchResult } from "../../services/searchService";
+import { productService, Product as BackendProduct } from "../../services/productService";
+import { categoryService, Category } from "../../services/categoryService";
 
 interface CategoryPageProps {
   categoryId: string;
@@ -48,65 +50,43 @@ export function CategoryPage({
   const [priceRange, setPriceRange] = useState([0, 50000000]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [products, setProducts] = useState<BackendProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [categoryName, setCategoryName] = useState<string>('');
 
-  // Mock products data - in real app this would come from API
-  const mockProducts: Product[] = [
-    {
-      id: "1",
-      name: "iPhone 15 Pro Max 256GB",
-      price: 29990000,
-      originalPrice: 32990000,
-      image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400",
-      rating: 4.8,
-      discount: 9,
-      isHot: true,
-      brand: "Apple",
-      category: "phone"
-    },
-    {
-      id: "2", 
-      name: "Samsung Galaxy S24 Ultra 512GB",
-      price: 27990000,
-      originalPrice: 30990000,
-      image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400",
-      rating: 4.7,
-      discount: 10,
-      brand: "Samsung",
-      category: "phone"
-    },
-    {
-      id: "3",
-      name: "MacBook Pro 14 M3 Pro",
-      price: 52990000,
-      originalPrice: 55990000,
-      image: "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400",
-      rating: 4.9,
-      discount: 5,
-      brand: "Apple",
-      category: "laptop"
-    },
-    {
-      id: "4",
-      name: "Dell XPS 13 Plus",
-      price: 35990000,
-      image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400",
-      rating: 4.6,
-      brand: "Dell",
-      category: "laptop"
+  useEffect(() => {
+    loadCategoryData();
+    loadProducts();
+  }, [categoryId]);
+
+  const loadCategoryData = async () => {
+    try {
+      const category = await categoryService.getCategoryById(categoryId);
+      setCategoryName(category.name);
+    } catch (error) {
+      console.error('Error loading category:', error);
     }
-  ];
-
-  const categoryNames: { [key: string]: string } = {
-    'phone': 'Điện thoại',
-    'laptop': 'Laptop',
-    'tablet': 'Tablet',
-    'accessories': 'Phụ kiện',
-    'home-appliances': 'Đồ gia dụng',
-    'tv': 'TV',
-    'refrigerator': 'Tủ lạnh'
   };
 
-  const brands = ['Apple', 'Samsung', 'Xiaomi', 'OPPO', 'Vivo', 'Dell', 'HP', 'ASUS', 'Acer', 'Lenovo'];
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await productService.getAllProducts({
+        category: categoryId,
+        page: 1,
+        limit: 50
+      });
+      setProducts(response.products || []);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Remove hardcoded mock products
+
+  const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean))) as string[];
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -115,12 +95,11 @@ export function CategoryPage({
     }).format(price);
   };
 
-  const filteredProducts = mockProducts.filter(product => {
-    const matchesCategory = product.category === categoryId;
+  const filteredProducts = products.filter(product => {
     const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1];
     const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(product.brand || '');
     
-    return matchesCategory && matchesPrice && matchesBrand;
+    return matchesPrice && matchesBrand;
   });
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -130,7 +109,7 @@ export function CategoryPage({
       case 'price-desc':
         return b.price - a.price;
       case 'rating':
-        return b.rating - a.rating;
+        return (b.rating || 0) - (a.rating || 0);
       case 'name':
         return a.name.localeCompare(b.name);
       default:
@@ -148,28 +127,33 @@ export function CategoryPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => onPageChange('home')}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại</span>
-          </Button>
-          <span className="mx-2 text-gray-400">/</span>
-          <span className="text-gray-600">{categoryNames[categoryId]}</span>
+      {loading ? (
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         </div>
+      ) : (
+        <div className="container mx-auto px-4 py-6">
+          {/* Breadcrumb */}
+          <div className="flex items-center mb-6">
+            <Button
+              variant="ghost"
+              onClick={() => onPageChange('home')}
+              className="flex items-center space-x-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Quay lại</span>
+            </Button>
+            <span className="mx-2 text-gray-400">/</span>
+            <span className="text-gray-600">{categoryName}</span>
+          </div>
 
-        {/* Page Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">{categoryNames[categoryId]}</h1>
-          <p className="text-gray-600">Tìm thấy {sortedProducts.length} sản phẩm</p>
-        </div>
+          {/* Page Header */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold mb-2">{categoryName}</h1>
+            <p className="text-gray-600">Tìm thấy {sortedProducts.length} sản phẩm</p>
+          </div>
 
-        <div className="flex gap-6">
+          <div className="flex gap-6">
           {/* Sidebar Filters */}
           <div className={`w-64 space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
             <Card>
@@ -273,8 +257,17 @@ export function CategoryPage({
               }>
                 {sortedProducts.map(product => (
                   <ProductCard
-                    key={product.id}
-                    product={product}
+                    key={product._id}
+                    product={{
+                      id: product._id,
+                      name: product.name,
+                      price: product.price,
+                      originalPrice: product.originalPrice,
+                      image: product.image,
+                      rating: product.rating || 5,
+                      discount: product.discount,
+                      isHot: product.isHot
+                    }}
                     onAddToCart={onAddToCart}
                     onProductClick={onProductClick}
                   />
@@ -292,7 +285,8 @@ export function CategoryPage({
             )}
           </div>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

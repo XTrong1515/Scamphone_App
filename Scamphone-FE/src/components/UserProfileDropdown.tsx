@@ -4,8 +4,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Separator } from "./ui/separator";
 import { useState, useEffect } from "react";
 import { userService } from "../services/userService";
+import { User } from "../types/user";
 import { 
-  User, 
+  User as UserIcon, 
   ShoppingBag, 
   Heart, 
   Settings, 
@@ -17,14 +18,6 @@ import {
   Bell,
   Shield
 } from "lucide-react";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  avatar: string;
-}
 
 interface UserProfileDropdownProps {
   user: User;
@@ -55,7 +48,7 @@ export function UserProfileDropdown({ user, onClose, onLogout, onPageChange }: U
 
   const menuItems = [
     {
-      icon: User,
+      icon: UserIcon,
       label: "Thông tin tài khoản",
       action: () => {
         onPageChange('profile');
@@ -111,6 +104,15 @@ export function UserProfileDropdown({ user, onClose, onLogout, onPageChange }: U
     }
   ];
 
+  // Filter menu items based on user role
+  const visibleMenuItems = menuItems.filter(item => {
+    // If item requires admin role, only show to admin users
+    if (item.isAdmin) {
+      return user.role === 'admin';
+    }
+    return true;
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex">
       {/* Backdrop */}
@@ -155,7 +157,7 @@ export function UserProfileDropdown({ user, onClose, onLogout, onPageChange }: U
 
             {/* Menu Items */}
             <div className="py-2">
-              {menuItems.map((item, index) => (
+              {visibleMenuItems.map((item, index) => (
                 <Button
                   key={index}
                   variant="ghost"

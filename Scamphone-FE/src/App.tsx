@@ -59,6 +59,7 @@ export default function App() {
   const [user, setUser] = useState<User | undefined>(undefined);
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
   const [selectedCategory, setSelectedCategory] = useState<{categoryId: string, subcategoryId?: string} | undefined>(undefined);
+  const [resetToken, setResetToken] = useState<string>('');
   
   // Modal/Dropdown states
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -76,8 +77,9 @@ export default function App() {
             id: userData._id,
             name: userData.name,
             email: userData.email,
-            phone: '',
-            avatar: ''
+            phone: userData.phone || '',
+            avatar: '',
+            role: userData.role
           };
           setUser(userObj);
           
@@ -176,6 +178,7 @@ export default function App() {
           <HomePage 
             onAddToCart={handleAddToCart} 
             onProductClick={handleProductClick}
+            onCategorySelect={handleCategorySelect}
           />
         );
       case 'login':
@@ -205,6 +208,7 @@ export default function App() {
         return selectedProduct ? (
           <ProductDetailPage
             product={selectedProduct}
+            user={user}
             onPageChange={setCurrentPage}
             onAddToCart={handleAddToCart}
           />
@@ -240,9 +244,12 @@ export default function App() {
       case 'test-api':
         return <TestApiPage />;
       case 'forgot-password':
-        return <ForgotPasswordForm onBack={() => setCurrentPage('login')} />;
+        return <ForgotPasswordForm 
+          onPageChange={setCurrentPage} 
+          onTokenGenerated={setResetToken}
+        />;
       case 'reset-password':
-        return <ResetPasswordPage />;
+        return <ResetPasswordPage token={resetToken} />;
       default:
         return (
           <HomePage 
@@ -254,7 +261,7 @@ export default function App() {
   };
 
   // Check if current page should show full layout or standalone
-  const isStandalonePage = currentPage === 'login' || currentPage === 'register' || currentPage === 'admin' || currentPage === 'profile' || currentPage === 'orders' || currentPage === 'favorites';
+  const isStandalonePage = currentPage === 'login' || currentPage === 'register' || currentPage === 'admin' || currentPage === 'profile' || currentPage === 'orders' || currentPage === 'favorites' || currentPage === 'forgot-password' || currentPage === 'reset-password';
 
   if (isStandalonePage) {
     // Render standalone pages without header/footer

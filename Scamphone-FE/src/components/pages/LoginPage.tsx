@@ -6,12 +6,13 @@ import { Separator } from "../ui/separator";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Loader2 } from "lucide-react";
 import { userService } from "../../services/userService";
+import { User } from "../../types/user";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Eye, EyeOff, Phone, Mail, Facebook, ArrowLeft } from "lucide-react";
 
 interface LoginPageProps {
   onPageChange: (page: string) => void;
-  onLogin: (user: any) => void;
+  onLogin: (user: User) => void;
 }
 
 export function LoginPage({ onPageChange, onLogin }: LoginPageProps) {
@@ -35,7 +36,17 @@ export function LoginPage({ onPageChange, onLogin }: LoginPageProps) {
         password: form.password
       });
       
-      onLogin(user);
+      // Map backend user format to App user format
+      const mappedUser: User = {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        avatar: '',
+        role: user.role
+      };
+      
+      onLogin(mappedUser);
       onPageChange('home');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
@@ -122,9 +133,10 @@ export function LoginPage({ onPageChange, onLogin }: LoginPageProps) {
               <div className="flex items-center justify-between">
                 <label className="flex items-center space-x-2">
                   <input type="checkbox" className="rounded" />
-                  <span className="text-sm text-gray-600">Ghi nhớ đăng nhập</span>
+                  <span className="text-sm text-gray-600">Ghi nhớ đăng nhận</span>
                 </label>
                 <Button 
+                  type="button"
                   variant="link" 
                   className="px-0 text-blue-600"
                   onClick={() => onPageChange('forgot-password')}

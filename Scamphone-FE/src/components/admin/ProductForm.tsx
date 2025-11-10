@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -20,6 +21,15 @@ interface ProductFormProps {
     specifications?: Record<string, string>;
     discount?: number;
     isHot?: boolean;
+    attributes?: Array<{ name: string; values: string[] }>;
+    variants?: Array<{
+      attributes: Record<string, string>;
+      price: number;
+      originalPrice?: number;
+      stock: number;
+      sku?: string;
+      image?: string;
+    }>;
   } | null;
   onClose: () => void;
   onSuccess: () => void;
@@ -28,6 +38,17 @@ interface ProductFormProps {
 
 export function ProductForm({ product, onClose, onSuccess, categories }: ProductFormProps) {
   const [loading, setLoading] = useState(false);
+  
+  // ESC key to close modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
   
   // Initialize form data with product data if editing
   const getInitialFormData = () => {
@@ -46,6 +67,9 @@ export function ProductForm({ product, onClose, onSuccess, categories }: Product
         ? [product.image] 
         : [""];
       
+      const attributesArray = product.attributes || [];
+      const variantsArray = product.variants || [];
+      
       return {
         name: product.name || "",
         description: product.description || "",
@@ -58,6 +82,8 @@ export function ProductForm({ product, onClose, onSuccess, categories }: Product
         specifications: specsArray,
         discount: product.discount?.toString() || "",
         isHot: product.isHot || false,
+        attributes: attributesArray,
+        variants: variantsArray,
       };
     }
     
@@ -73,6 +99,8 @@ export function ProductForm({ product, onClose, onSuccess, categories }: Product
       specifications: [{ key: "", value: "" }],
       discount: "",
       isHot: false,
+      attributes: [],
+      variants: [],
     };
   };
 
@@ -118,6 +146,91 @@ export function ProductForm({ product, onClose, onSuccess, categories }: Product
     setFormData({ ...formData, specifications: newSpecs });
   };
 
+  // Attributes handlers
+  const handleAddAttribute = () => {
+    setFormData({
+      ...formData,
+      attributes: [...formData.attributes, { name: "", values: [] }],
+    });
+  };
+
+  const handleRemoveAttribute = (index: number) => {
+    const newAttrs = formData.attributes.filter((_, i) => i !== index);
+    setFormData({ ...formData, attributes: newAttrs });
+    // Regenerate variants when attributes change
+    if (newAttrs.length > 0) {
+      generateVariants(newAttrs);
+    } else {
+      setFormData(prev => ({ ...prev, variants: [] }));
+    }
+  };
+
+  const handleAttributeNameChange = (index: number, name: string) => {
+    const newAttrs = [...formData.attributes];
+    newAttrs[index].name = name;
+    setFormData({ ...formData, attributes: newAttrs });
+  };
+
+  const handleAttributeValuesChange = (index: number, valuesStr: string) => {
+    const newAttrs = [...formData.attributes];
+    // Split by comma and trim
+    newAttrs[index].values = valuesStr
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v !== '');
+    setFormData({ ...formData, attributes: newAttrs });
+  };
+
+  // Generate variants from attributes
+  const generateVariants = (attrs = formData.attributes) => {
+    if (attrs.length === 0 || attrs.some(attr => !attr.name || attr.values.length === 0)) {
+      return;
+    }
+
+    // Generate all combinations
+    const generateCombinations = (arrays: string[][]): string[][] => {
+      if (arrays.length === 0) return [[]];
+      const [first, ...rest] = arrays;
+      const restCombinations = generateCombinations(rest);
+      return first.flatMap(value =>
+        restCombinations.map(combo => [value, ...combo])
+      );
+    };
+
+    const attrNames = attrs.map(attr => attr.name);
+    const attrValues = attrs.map(attr => attr.values);
+    const combinations = generateCombinations(attrValues);
+
+    const newVariants = combinations.map(combo => {
+      const attributes: Record<string, string> = {};
+      attrNames.forEach((name, idx) => {
+        attributes[name] = combo[idx];
+      });
+
+      // Check if variant already exists (preserve user data)
+      const existing = formData.variants.find(v => 
+        JSON.stringify(v.attributes) === JSON.stringify(attributes)
+      );
+
+      return existing || {
+        attributes,
+        price: parseFloat(formData.price) || 0,
+        originalPrice: parseFloat(formData.originalPrice) || parseFloat(formData.price) || 0,
+        stock: 0,
+        sku: '',
+        image: ''
+      };
+    });
+
+    setFormData({ ...formData, variants: newVariants });
+  };
+
+  const handleVariantChange = (index: number, field: string, value: any) => {
+    const newVariants = [...formData.variants];
+    newVariants[index] = { ...newVariants[index], [field]: value };
+    setFormData({ ...formData, variants: newVariants });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -153,6 +266,13 @@ export function ProductForm({ product, onClose, onSuccess, categories }: Product
         specifications,
         discount: formData.discount ? parseFloat(formData.discount) : 0,
         isHot: formData.isHot,
+        attributes: formData.attributes.filter(attr => attr.name && attr.values.length > 0),
+        variants: formData.variants.map(v => ({
+          ...v,
+          price: parseFloat(v.price.toString()),
+          originalPrice: v.originalPrice ? parseFloat(v.originalPrice.toString()) : parseFloat(v.price.toString()),
+          stock: parseInt(v.stock.toString())
+        })),
       };
 
       if (product) {
@@ -175,260 +295,526 @@ export function ProductForm({ product, onClose, onSuccess, categories }: Product
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">
+  const modalContent = (
+    <div 
+      className="fixed inset-0 bg-black flex items-center justify-center p-4"
+      style={{ zIndex: 99999 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="text-xl font-bold text-gray-900">
             {product ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"}
           </h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onClose}
+            className="h-8 w-8 p-0 hover:bg-gray-100"
+          >
             <X className="w-5 h-5" />
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Basic Info */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Thông tin cơ bản</h3>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Tên sản phẩm <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="iPhone 15 Pro Max 256GB"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Mô tả</label>
-              <textarea
-                className="w-full border rounded-md p-2 min-h-[100px]"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Mô tả chi tiết sản phẩm..."
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Giá bán <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="29990000"
-                  required
-                />
+                {/* Form Content */}
+        <form id="product-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+          <div className="p-6 space-y-5">{/* Basic Information Section */}
+            {/* Basic Information Section */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <span className="text-lg">📝</span>
+                <h3 className="font-bold text-base text-gray-900">Thông tin cơ bản</h3>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Giá gốc</label>
-                <Input
-                  type="number"
-                  value={formData.originalPrice}
-                  onChange={(e) =>
-                    setFormData({ ...formData, originalPrice: e.target.value })
-                  }
-                  placeholder="34990000"
-                />
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tên sản phẩm <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="VD: iPhone 15 Pro Max 256GB"
+                    className="h-10"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Mô tả sản phẩm
+                  </label>
+                  <textarea
+                    className="w-full border border-gray-300 rounded-lg p-2.5 min-h-[80px] text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Mô tả chi tiết về sản phẩm..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Giá bán <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={formData.price}
+                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                        placeholder="29990000"
+                        className="h-10 pl-8"
+                        required
+                      />
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₫</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Giá gốc
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={formData.originalPrice}
+                        onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
+                        placeholder="34990000"
+                        className="h-10 pl-8"
+                      />
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₫</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Số lượng <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      value={formData.stock_quantity}
+                      onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                      placeholder="100"
+                      className="h-10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Danh mục <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="w-full h-10 border border-gray-300 rounded-lg px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      required
+                    >
+                      <option value="">Chọn danh mục</option>
+                      {categories.map((cat) => (
+                        <option key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Thương hiệu
+                    </label>
+                    <Input
+                      value={formData.brand}
+                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                      placeholder="VD: Apple"
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Giảm giá (%)
+                    </label>
+                    <Input
+                      type="number"
+                      value={formData.discount}
+                      onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
+                      placeholder="VD: 15"
+                      className="h-10"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 cursor-pointer h-10">
+                      <input
+                        type="checkbox"
+                        checked={formData.isHot}
+                        onChange={(e) => setFormData({ ...formData, isHot: e.target.checked })}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Sản phẩm HOT 🔥</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Số lượng <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="number"
-                  value={formData.stock_quantity}
-                  onChange={(e) =>
-                    setFormData({ ...formData, stock_quantity: e.target.value })
-                  }
-                  placeholder="100"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Danh mục <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full border rounded-md p-2"
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
-                  }
-                  required
+            {/* Images Section */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🖼️</span>
+                  <h3 className="font-bold text-base text-gray-900">Hình ảnh</h3>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddImage}
+                  className="h-8 text-xs gap-1"
                 >
-                  <option value="">Chọn danh mục</option>
-                  {categories.map((cat) => (
-                    <option key={cat._id} value={cat._id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                  <Plus className="w-3 h-3" />
+                  Thêm
+                </Button>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Thương hiệu</label>
-                <Input
-                  value={formData.brand}
-                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                  placeholder="Apple"
-                />
+              <div className="space-y-2">
+                {formData.images.map((image, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={image}
+                      onChange={(e) => handleImageChange(index, e.target.value)}
+                      placeholder={`Link ảnh ${index + 1}`}
+                      className="h-9 text-sm"
+                    />
+                    {formData.images.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveImage(index)}
+                        className="h-9 w-9 p-0 border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Specifications Section */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⚙️</span>
+                  <h3 className="font-bold text-base text-gray-900">Thông số kỹ thuật</h3>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddSpecification}
+                  className="h-8 text-xs gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Thêm
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {formData.specifications.map((spec, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      className="flex-1 h-9 text-sm"
+                      value={spec.key}
+                      onChange={(e) => handleSpecificationChange(index, "key", e.target.value)}
+                      placeholder="VD: Màn hình"
+                    />
+                    <Input
+                      className="flex-1 h-9 text-sm"
+                      value={spec.value}
+                      onChange={(e) => handleSpecificationChange(index, "value", e.target.value)}
+                      placeholder="VD: 6.7 inch"
+                    />
+                    {formData.specifications.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveSpecification(index)}
+                        className="h-9 w-9 p-0 border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Giảm giá (%)
-                </label>
-                <Input
-                  type="number"
-                  value={formData.discount}
-                  onChange={(e) =>
-                    setFormData({ ...formData, discount: e.target.value })
-                  }
-                  placeholder="15"
-                  min="0"
-                  max="100"
-                />
+            {/* Product Attributes (for Variants) */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏷️</span>
+                  <h3 className="font-bold text-base text-gray-900">Thuộc tính (Variants)</h3>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddAttribute}
+                  className="h-8 text-xs gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Thêm
+                </Button>
               </div>
 
-              <div className="flex items-center gap-2 pt-8">
-                <input
-                  type="checkbox"
-                  id="isHot"
-                  checked={formData.isHot}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isHot: e.target.checked })
-                  }
-                  className="w-4 h-4"
-                />
-                <label htmlFor="isHot" className="text-sm font-medium">
-                  Sản phẩm HOT
-                </label>
-              </div>
-            </div>
-          </div>
+              <div className="space-y-3">
+                {formData.attributes.map((attr, index) => (
+                  <div key={index} className="bg-gray-50 border border-gray-200 p-3 rounded-lg space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        value={attr.name}
+                        onChange={(e) => handleAttributeNameChange(index, e.target.value)}
+                        placeholder="VD: Màu sắc, Dung lượng"
+                        className="flex-1 h-9 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveAttribute(index)}
+                        className="h-9 w-9 p-0 border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    <Input
+                      value={attr.values.join(', ')}
+                      onChange={(e) => handleAttributeValuesChange(index, e.target.value)}
+                      placeholder="VD: Đen, Trắng, Xanh"
+                      className="h-9 text-sm"
+                    />
+                    {attr.values.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {attr.values.map((val, vIdx) => (
+                          <span
+                            key={vIdx}
+                            className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                          >
+                            {val}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
 
-          {/* Images */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-lg">Hình ảnh</h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddImage}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Thêm ảnh
-              </Button>
-            </div>
-
-            {formData.images.map((image, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  value={image}
-                  onChange={(e) => handleImageChange(index, e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                />
-                {formData.images.length > 1 && (
+                {formData.attributes.length > 0 && (
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    onClick={() => handleRemoveImage(index)}
+                    className="w-full h-9 text-sm border-dashed border-blue-300 text-blue-600 hover:bg-blue-50"
+                    onClick={() => generateVariants()}
                   >
-                    <Trash2 className="w-4 h-4 text-red-600" />
+                    🔄 Tạo Variants
                   </Button>
                 )}
               </div>
-            ))}
-          </div>
-
-          {/* Specifications */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-lg">Thông số kỹ thuật</h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddSpecification}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Thêm thông số
-              </Button>
             </div>
 
-            {formData.specifications.map((spec, index) => (
-              <div key={index} className="grid grid-cols-5 gap-2">
-                <Input
-                  className="col-span-2"
-                  value={spec.key}
-                  onChange={(e) =>
-                    handleSpecificationChange(index, "key", e.target.value)
-                  }
-                  placeholder="Màn hình"
-                />
-                <Input
-                  className="col-span-2"
-                  value={spec.value}
-                  onChange={(e) =>
-                    handleSpecificationChange(index, "value", e.target.value)
-                  }
-                  placeholder="6.7 inch OLED"
-                />
-                {formData.specifications.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRemoveSpecification(index)}
-                  >
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                )}
+          {/* Variants Table - Desktop */}
+          {formData.variants.length > 0 && (
+            <>
+              <div className="hidden lg:block space-y-4 border-t pt-6">
+                <h3 className="font-semibold text-lg">
+                  Quản lý Variants ({formData.variants.length})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="text-left p-2">Thuộc tính</th>
+                        <th className="text-left p-2">Giá bán</th>
+                        <th className="text-left p-2">Giá gốc</th>
+                        <th className="text-left p-2">Số lượng</th>
+                        <th className="text-left p-2">SKU</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {formData.variants.map((variant, index) => (
+                        <tr key={index} className="border-b">
+                          <td className="p-2">
+                            <div className="flex flex-wrap gap-1">
+                              {Object.entries(variant.attributes).map(([key, value]) => (
+                                <span
+                                  key={key}
+                                  className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs"
+                                >
+                                  {key}: {value}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              value={variant.price}
+                              onChange={(e) => handleVariantChange(index, 'price', e.target.value)}
+                              className="w-32"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              value={variant.originalPrice || variant.price}
+                              onChange={(e) => handleVariantChange(index, 'originalPrice', e.target.value)}
+                              className="w-32"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              value={variant.stock}
+                              onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
+                              className="w-24"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              value={variant.sku || ''}
+                              onChange={(e) => handleVariantChange(index, 'sku', e.target.value)}
+                              placeholder="SKU-001"
+                              className="w-32"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            ))}
-          </div>
+
+              {/* Variants Cards - Mobile */}
+              <div className="lg:hidden space-y-3 border-t pt-4">
+                <h3 className="font-semibold text-base">
+                  Quản lý Variants ({formData.variants.length})
+                </h3>
+                {formData.variants.map((variant, index) => (
+                  <div key={index} className="bg-gray-50 p-3 rounded-lg space-y-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(variant.attributes).map(([key, value]) => (
+                        <span
+                          key={key}
+                          className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium"
+                        >
+                          {key}: {value}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Giá bán</label>
+                        <Input
+                          type="number"
+                          value={variant.price}
+                          onChange={(e) => handleVariantChange(index, 'price', e.target.value)}
+                          className="w-full text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Giá gốc</label>
+                        <Input
+                          type="number"
+                          value={variant.originalPrice || variant.price}
+                          onChange={(e) => handleVariantChange(index, 'originalPrice', e.target.value)}
+                          className="w-full text-sm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Số lượng</label>
+                          <Input
+                            type="number"
+                            value={variant.stock}
+                            onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
+                            className="w-full text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">SKU</label>
+                          <Input
+                            value={variant.sku || ''}
+                            onChange={(e) => handleVariantChange(index, 'sku', e.target.value)}
+                            placeholder="SKU-001"
+                            className="w-full text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Actions */}
-          <div className="flex gap-3 justify-end pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Hủy
-            </Button>
-            <Button
-              type="submit"
-              className="bg-blue-600"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {product ? "Đang cập nhật..." : "Đang thêm..."}
-                </>
-              ) : (
-                product ? "Cập nhật sản phẩm" : "Thêm sản phẩm"
-              )}
-            </Button>
           </div>
         </form>
-      </Card>
+
+        {/* Compact Footer */}
+        <div className="border-t bg-white px-6 py-4 flex gap-3 justify-end flex-shrink-0">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose}
+            className="h-10 px-6"
+          >
+            Hủy
+          </Button>
+          <Button
+            type="submit"
+            form="product-form"
+            className="bg-blue-600 hover:bg-blue-700 h-10 px-6 font-medium"
+            disabled={loading}
+            onClick={(e: React.MouseEvent) => {
+              e.preventDefault();
+              const form = document.getElementById('product-form') as HTMLFormElement;
+              if (form) {
+                const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                form.dispatchEvent(submitEvent);
+              }
+            }}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {product ? "Đang lưu..." : "Đang thêm..."}
+              </>
+            ) : (
+              <>
+                {product ? "Lưu thay đổi" : "Tạo sản phẩm"}
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
