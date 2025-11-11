@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { CategoryDropdown } from "./CategoryDropdown";
+import { NotificationBadge } from "./NotificationCenter";
 
 interface User {
   id: string;
@@ -22,6 +23,7 @@ interface HeaderProps {
   onShowCartDropdown: () => void;
   onShowUserMenu: () => void;
   onCategorySelect: (categoryId: string, subcategoryId?: string) => void;
+  onShowNotifications?: () => void;
 }
 
 export function Header({ 
@@ -32,7 +34,8 @@ export function Header({
   onShowAuthModal, 
   onShowCartDropdown,
   onShowUserMenu,
-  onCategorySelect
+  onCategorySelect,
+  onShowNotifications
 }: HeaderProps) {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
@@ -90,6 +93,10 @@ export function Header({
 
           {/* Actions */}
           <div className="flex items-center space-x-4">
+            {user && onShowNotifications && (
+              <NotificationBadge onClick={onShowNotifications} />
+            )}
+            
             {user ? (
               <Button
                 variant="ghost"

@@ -1,23 +1,41 @@
 import mongoose from "mongoose";
 
 const orderItemSchema = new mongoose.Schema({
-    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
+    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+    name: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 },
-    price: { type: Number, required: true } // Lưu lại giá tại thời điểm mua
+    price: { type: Number, required: true },
+    image: { type: String }
 });
+
+const shippingAddressSchema = new mongoose.Schema({
+    fullName: { type: String, required: true },
+    phone: { type: String, required: true },
+    address: { type: String, required: true },
+    city: { type: String },
+    district: { type: String }
+}, { _id: false });
 
 const orderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    items: [orderItemSchema],
-    total_amount: { type: Number, required: true },
-    shipping_address: { type: String, required: true },
-    phone_number: { type: String, required: true },
+    orderItems: [orderItemSchema],
+    shippingAddress: { type: shippingAddressSchema, required: true },
+    paymentMethod: { 
+        type: String, 
+        enum: ["COD", "VNPay", "Cash"],
+        default: "COD"
+    },
+    totalPrice: { type: Number, required: true },
     status: {
         type: String,
-        enum: ["pending", "confirmed", "shipping", "completed", "cancelled", "refunded"],
+        enum: ["pending", "processing", "shipping", "delivered", "cancelled"],
         default: "pending"
     },
-    payment: { type: mongoose.Schema.Types.ObjectId, ref: "Payment" }
+    rejectionReason: { type: String },
+    isPaid: { type: Boolean, default: false },
+    paidAt: { type: Date },
+    isDelivered: { type: Boolean, default: false },
+    deliveredAt: { type: Date }
 }, { timestamps: true });
 
 export default mongoose.model("Order", orderSchema);

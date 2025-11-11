@@ -16,10 +16,18 @@ const getProducts = asyncHandler(async (req, res) => {
     search,
     sort = '-createdAt',
     isNewProduct,
-    isHot
+    isHot,
+    status // Allow filtering by status
   } = req.query;
 
-  const query = { status: 'active' };
+  // Don't filter by status by default - show all products
+  // Frontend will handle display logic based on status
+  const query = {};
+  
+  // Only filter by status if explicitly requested
+  if (status) {
+    query.status = status;
+  }
 
   // Filters
   if (category) query.category = category;
@@ -86,7 +94,9 @@ const createProduct = asyncHandler(async (req, res) => {
     image,
     specifications,
     discount,
-    isHot
+    isHot,
+    attributes,
+    variants
   } = req.body;
 
   // Generate unique slug
@@ -110,6 +120,8 @@ const createProduct = asyncHandler(async (req, res) => {
     discount: discount || 0,
     isHot: isHot || false,
     isNewProduct: true, // Always true for new products
+    attributes: attributes || [],
+    variants: variants || [],
     slug,
     status: stock_quantity > 0 ? 'active' : 'out_of_stock'
   });
@@ -145,7 +157,9 @@ const updateProduct = asyncHandler(async (req, res) => {
     discount,
     isHot,
     isNewProduct,
-    status
+    status,
+    attributes,
+    variants
   } = req.body;
 
   // Update slug if name changed
@@ -167,6 +181,8 @@ const updateProduct = asyncHandler(async (req, res) => {
   product.isHot = isHot !== undefined ? isHot : product.isHot;
   product.isNewProduct = isNewProduct !== undefined ? isNewProduct : product.isNewProduct;
   product.status = status || (stock_quantity > 0 ? 'active' : 'out_of_stock');
+  product.attributes = attributes !== undefined ? attributes : product.attributes;
+  product.variants = variants !== undefined ? variants : product.variants;
 
   const updatedProduct = await product.save();
   const populatedProduct = await Product.findById(updatedProduct._id).populate('category', 'name');

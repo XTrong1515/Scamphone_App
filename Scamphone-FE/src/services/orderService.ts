@@ -1,48 +1,54 @@
 import { api } from './api';
 
+export interface OrderItem {
+  product?: string;
+  name: string;
+  quantity: number;
+  price: number;
+  image?: string;
+}
+
+export interface ShippingAddress {
+  fullName: string;
+  phone: string;
+  address: string;
+  city?: string;
+  district?: string;
+}
+
 export interface Order {
   _id: string;
   user: string;
-  products: {
-    product: string;
-    quantity: number;
-    price: number;
-  }[];
-  totalAmount: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  shippingAddress: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
-  paymentStatus: 'pending' | 'completed' | 'failed';
+  orderItems: OrderItem[];
+  shippingAddress: ShippingAddress;
+  paymentMethod: 'COD' | 'VNPay' | 'Cash';
+  totalPrice: number;
+  status: 'pending' | 'processing' | 'shipping' | 'delivered' | 'cancelled';
+  rejectionReason?: string;
+  isPaid: boolean;
+  paidAt?: string;
+  isDelivered: boolean;
+  deliveredAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateOrderData {
-  products: {
-    product: string;
-    quantity: number;
-  }[];
-  shippingAddress: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
+  orderItems: OrderItem[];
+  shippingAddress: ShippingAddress;
+  paymentMethod: 'COD' | 'VNPay';
+  totalPrice: number;
 }
 
 export const orderService = {
-  async getAllOrders(params?: {
-    page?: number;
-    limit?: number;
-    status?: Order['status'];
-  }) {
-    const { data } = await api.get<{ orders: Order[]; total: number }>('/orders', { params });
+  // User APIs
+  async createOrder(orderData: CreateOrderData) {
+    const { data } = await api.post<Order>('/orders', orderData);
+    return data;
+  },
+
+  async getUserOrders() {
+    const { data } = await api.get<Order[]>('/orders/myorders');
     return data;
   },
 
@@ -51,8 +57,9 @@ export const orderService = {
     return data;
   },
 
-  async createOrder(orderData: CreateOrderData) {
-    const { data } = await api.post<Order>('/orders', orderData);
+  // Admin APIs
+  async getAllOrders() {
+    const { data } = await api.get<Order[]>('/orders');
     return data;
   },
 
@@ -61,13 +68,13 @@ export const orderService = {
     return data;
   },
 
-  async cancelOrder(id: string) {
-    const { data } = await api.put<Order>(`/orders/${id}/cancel`);
+  async confirmOrder(id: string) {
+    const { data } = await api.put<Order>(`/orders/${id}/confirm`);
     return data;
   },
 
-  async getUserOrders() {
-    const { data } = await api.get<Order[]>('/orders/user');
+  async rejectOrder(id: string, reason: string) {
+    const { data } = await api.put<Order>(`/orders/${id}/reject`, { reason });
     return data;
   }
 };

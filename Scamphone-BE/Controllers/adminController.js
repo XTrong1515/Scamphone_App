@@ -190,7 +190,7 @@ const getOrdersAdmin = asyncHandler(async (req, res) => {
   const count = await Order.countDocuments({});
   const orders = await Order.find({})
     .populate('user', 'name email')
-    .populate('items.product', 'name price')
+    .populate('orderItems.product', 'name price')
     .skip(pageSize * (page - 1))
     .limit(pageSize)
     .sort({ createdAt: -1 });
@@ -204,7 +204,7 @@ const getOrdersAdmin = asyncHandler(async (req, res) => {
 const getOrderByIdAdmin = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
     .populate('user', 'name email')
-    .populate('items.product', 'name price');
+    .populate('orderItems.product', 'name price');
 
   if (!order) {
     res.status(404);

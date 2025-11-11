@@ -11,6 +11,7 @@ import orderRoutes from './Routes/orderRoutes.js';
 import adminRoutes from './Routes/adminRoutes.js';
 import passwordResetRoutes from './Routes/passwordResetRoutes.js';
 import discountRoutes from './Routes/discountRoutes.js';
+import notificationRoutes from './Routes/notificationRoutes.js';
 import { notFound, errorHandler } from './Middleware/errorMiddleware.js';
 
 dotenv.config();
@@ -57,6 +58,12 @@ app.post('/api/v1/dev/set-password', async (req, res) => {
   }
 });
 
+// Debug middleware - Log all requests
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.path}`);
+  next();
+});
+
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/categories', categoryRoutes);
@@ -64,6 +71,7 @@ app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/password', passwordResetRoutes);
 app.use('/api/v1/discounts', discountRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // Middleware xử lý lỗi
 app.use(notFound);

@@ -18,6 +18,10 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { TestApiPage } from "./components/pages/TestApiPage";
 import { ForgotPasswordForm } from "./components/ForgotPasswordForm";
 import { ResetPasswordPage } from "./components/pages/ResetPasswordPage";
+import { CheckoutPage } from "./components/pages/CheckoutPage";
+import { PaymentPage } from "./components/pages/PaymentPage";
+import { OrderSuccessPage } from "./components/pages/OrderSuccessPage";
+import { NotificationCenter } from "./components/NotificationCenter";
 import { userService } from "./services/userService";
 
 interface Product {
@@ -60,11 +64,14 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
   const [selectedCategory, setSelectedCategory] = useState<{categoryId: string, subcategoryId?: string} | undefined>(undefined);
   const [resetToken, setResetToken] = useState<string>('');
+  const [checkoutData, setCheckoutData] = useState<any>(null);
+  const [orderData, setOrderData] = useState<any>(null);
   
   // Modal/Dropdown states
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Load user from token on app mount
   useEffect(() => {
@@ -162,6 +169,17 @@ export default function App() {
     setCartItems([]); // Clear cart on logout
   };
 
+  const handlePageChange = (page: string, data?: any) => {
+    setCurrentPage(page);
+    if (data) {
+      if (page === 'payment') {
+        setCheckoutData(data);
+      } else if (page === 'order-success') {
+        setOrderData(data);
+      }
+    }
+  };
+
   const handleCategorySelect = (categoryId: string, subcategoryId?: string) => {
     setSelectedCategory({ categoryId, subcategoryId });
     setCurrentPage('category');
@@ -250,6 +268,12 @@ export default function App() {
         />;
       case 'reset-password':
         return <ResetPasswordPage token={resetToken} />;
+      case 'checkout':
+        return <CheckoutPage onPageChange={handlePageChange} cartItems={cartItems} user={user} />;
+      case 'payment':
+        return <PaymentPage onPageChange={handlePageChange} checkoutData={checkoutData} />;
+      case 'order-success':
+        return <OrderSuccessPage onPageChange={setCurrentPage} orderData={orderData} />;
       default:
         return (
           <HomePage 
@@ -284,6 +308,7 @@ export default function App() {
         onShowCartDropdown={() => setShowCartDropdown(true)}
         onShowUserMenu={() => setShowUserMenu(true)}
         onCategorySelect={handleCategorySelect}
+        onShowNotifications={() => setShowNotifications(true)}
       />
       
       <main className="flex-1">
@@ -314,6 +339,12 @@ export default function App() {
           onClose={() => setShowUserMenu(false)}
           onLogout={handleLogout}
           onPageChange={setCurrentPage}
+        />
+      )}
+
+      {showNotifications && user && (
+        <NotificationCenter
+          onClose={() => setShowNotifications(false)}
         />
       )}
 

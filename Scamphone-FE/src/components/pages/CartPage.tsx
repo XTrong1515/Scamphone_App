@@ -322,16 +322,17 @@ export function CartPage({ cartItems, user, onUpdateCart, onPageChange }: CartPa
                   </div>
                   
           <Button 
-            className="w-full bg-blue-600 hover:bg-blue-700 text-sm sm:text-base py-5 sm:py-6 shadow-lg hover:shadow-xl transition-all" 
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm sm:text-base py-5 sm:py-6 shadow-lg hover:shadow-xl transition-all" 
             size="lg"
             onClick={() => {
               if (!user) {
                 setError("Vui lòng đăng nhập để tiếp tục thanh toán");
                 return;
               }
-              setShowCheckout(true);
+              // Navigate to checkout page
+              onPageChange('checkout');
             }}
-            disabled={isLoading}
+            disabled={isLoading || cartItems.length === 0}
           >
             {isLoading ? (
               <>
