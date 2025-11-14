@@ -32,6 +32,9 @@ const orderSchema = new mongoose.Schema({
         default: "pending"
     },
     rejectionReason: { type: String },
+    cancelReason: { type: String },
+    cancelledBy: { type: String, enum: ['user', 'admin'], default: null },
+    cancelledAt: { type: Date },
     isPaid: { type: Boolean, default: false },
     paidAt: { type: Date },
     isDelivered: { type: Boolean, default: false },

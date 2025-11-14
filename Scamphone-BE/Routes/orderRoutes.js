@@ -7,13 +7,15 @@ import {
   getAllOrders,
   updateOrderStatus,
   confirmOrder,
-  rejectOrder
+  rejectOrder,
+  cancelOrder
 } from '../Controllers/orderController.js';
 import { protect, admin } from '../Middleware/authMiddleware.js';
 
 // User routes
 router.post('/', protect, addOrderItems);
 router.get('/myorders', protect, getMyOrders);
+router.put('/:id/cancel', protect, cancelOrder);
 
 // Admin routes - Đặt TRƯỚC các route có :id
 router.get('/', protect, admin, getAllOrders);

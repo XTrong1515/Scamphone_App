@@ -65,7 +65,11 @@ const getMyOrders = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/orders
 // @access  Private/Admin
 const getAllOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({})
+  const filter = {};
+  if (req.query.includeCancelled !== 'true') {
+    filter.status = { $ne: 'cancelled' };
+  }
+  const orders = await Order.find(filter)
     .populate('user', 'name email')
     .populate('orderItems.product')
     .sort({ createdAt: -1 });
@@ -206,6 +210,61 @@ const rejectOrder = asyncHandler(async (req, res) => {
   res.json(updatedOrder);
 });
 
+// @desc    Allow user to cancel own order
+// @route   PUT /api/v1/orders/:id/cancel
+// @access  Private (Owner)
+const cancelOrder = asyncHandler(async (req, res) => {
+  const { reason } = req.body || {};
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    res.status(404);
+    throw new Error('Không tìm thấy đơn hàng');
+  }
+
+  const isOwner = order.user.toString() === req.user._id.toString();
+
+  if (!isOwner && req.user.role !== 'admin') {
+    res.status(403);
+    throw new Error('Bạn không có quyền hủy đơn hàng này');
+  }
+
+  if (!['pending', 'processing'].includes(order.status)) {
+    res.status(400);
+    throw new Error('Chỉ có thể hủy đơn hàng đang chờ xử lý hoặc đang chuẩn bị');
+  }
+
+  const previousStatus = order.status;
+  order.status = 'cancelled';
+  order.cancelledBy = isOwner ? 'user' : 'admin';
+  order.cancelReason = reason || (isOwner ? 'Khách hàng đã hủy đơn hàng' : 'Hệ thống đã hủy đơn hàng');
+  order.cancelledAt = new Date();
+  order.rejectionReason = undefined;
+
+  if (previousStatus === 'processing') {
+    for (const item of order.orderItems) {
+      if (!item.product) continue;
+      const product = await Product.findById(item.product);
+      if (product) {
+        product.stock_quantity += item.quantity;
+        await product.save();
+      }
+    }
+  }
+
+  const updatedOrder = await order.save();
+
+  await createNotification(order.user, {
+    type: 'order_cancelled',
+    title: 'Đơn hàng đã được hủy',
+    message: `Đơn hàng #${order._id.toString().slice(-8)} đã được hủy. ${order.cancelReason}`,
+    order: order._id,
+    metadata: { cancelReason: order.cancelReason }
+  });
+
+  res.json(updatedOrder);
+});
+
 export { 
   addOrderItems, 
   getOrderById, 
@@ -213,5 +272,6 @@ export {
   getAllOrders,
   updateOrderStatus,
   confirmOrder,
-  rejectOrder
+  rejectOrder,
+  cancelOrder
 };

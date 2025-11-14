@@ -15,7 +15,7 @@ const OrderStatusIcon = ({ status }: { status: Order['status'] }) => {
       return <Package className="w-5 h-5 text-orange-500" />;
     case 'processing':
       return <Package className="w-5 h-5 text-blue-500" />;
-    case 'shipped':
+    case 'shipping':
       return <Truck className="w-5 h-5 text-purple-500" />;
     case 'delivered':
       return <CheckCircle className="w-5 h-5 text-green-500" />;
@@ -30,17 +30,17 @@ const OrderStatusText = ({ status }: { status: Order['status'] }) => {
   const statusMap = {
     pending: 'Chờ xác nhận',
     processing: 'Đang xử lý',
-    shipped: 'Đang giao hàng',
+    shipping: 'Đang giao hàng',
     delivered: 'Đã giao hàng',
     cancelled: 'Đã hủy'
-  };
+  } as const;
 
   return (
     <span className={`
       px-2 py-1 rounded-full text-sm font-medium
       ${status === 'pending' ? 'bg-orange-100 text-orange-700' : ''}
       ${status === 'processing' ? 'bg-blue-100 text-blue-700' : ''}
-      ${status === 'shipped' ? 'bg-purple-100 text-purple-700' : ''}
+  ${status === 'shipping' ? 'bg-purple-100 text-purple-700' : ''}
       ${status === 'delivered' ? 'bg-green-100 text-green-700' : ''}
       ${status === 'cancelled' ? 'bg-red-100 text-red-700' : ''}
     `}>
@@ -53,6 +53,7 @@ export function OrderHistoryPage({ onPageChange }: OrderHistoryPageProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -70,12 +71,17 @@ export function OrderHistoryPage({ onPageChange }: OrderHistoryPageProps) {
   };
 
   const handleCancelOrder = async (orderId: string) => {
+    const confirmed = window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này?');
+    if (!confirmed) return;
+
     try {
+      setCancellingId(orderId);
       await orderService.cancelOrder(orderId);
-      // Reload orders after cancellation
-      loadOrders();
+      await loadOrders();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể hủy đơn hàng');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -128,11 +134,11 @@ export function OrderHistoryPage({ onPageChange }: OrderHistoryPageProps) {
 
                 <div className="space-y-4">
                   {(() => {
-                    const items = (order as any).items ?? (order as any).orderItems ?? [];
+                    const items = (order as any).orderItems ?? (order as any).items ?? [];
                     return items.map((item: any, index: number) => (
                       <div key={index} className="flex justify-between items-center">
                         <div>
-                          <h3 className="font-medium">{item.product ?? item.name}</h3>
+                          <h3 className="font-medium">{item.name ?? item.product}</h3>
                           <p className="text-sm text-gray-500">
                             Số lượng: {item.quantity ?? item.qty}
                           </p>
@@ -156,16 +162,17 @@ export function OrderHistoryPage({ onPageChange }: OrderHistoryPageProps) {
                         {new Intl.NumberFormat('vi-VN', {
                           style: 'currency',
                           currency: 'VND'
-                        }).format(order.totalAmount)}
+                        }).format(order.totalPrice ?? (order as any).totalAmount ?? 0)}
                       </p>
                     </div>
                     <div className="space-x-2">
-                      {order.status === 'pending' && (
+                      {['pending', 'processing'].includes(order.status) && (
                         <Button
                           variant="destructive"
                           onClick={() => handleCancelOrder(order._id)}
+                          disabled={cancellingId === order._id}
                         >
-                          Hủy đơn hàng
+                          {cancellingId === order._id ? 'Đang hủy...' : 'Hủy đơn hàng'}
                         </Button>
                       )}
                       <Button variant="outline" onClick={() => onPageChange(`order-detail/${order._id}`)}>

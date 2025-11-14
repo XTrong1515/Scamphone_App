@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandItem } from './ui/command';
@@ -79,6 +79,7 @@ export function SearchBar({ onSearch, className = '' }: SearchBarProps) {
     }
   };
 
+  // Removed explicit clear button per user request; internal clear helper kept if needed later
   const clearSearch = () => {
     setQuery('');
     setSuggestions([]);
@@ -94,18 +95,9 @@ export function SearchBar({ onSearch, className = '' }: SearchBarProps) {
           value={query}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyPress={handleKeyPress}
-          className="pr-24"
+          className="pr-12"
         />
-        {query && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-12 hover:bg-transparent"
-            onClick={clearSearch}
-          >
-            <X className="h-4 w-4 text-gray-400" />
-          </Button>
-        )}
+        {/* Clear (X) button removed */}
         <Button
           className="absolute right-0 px-3"
           onClick={() => handleSearch()}

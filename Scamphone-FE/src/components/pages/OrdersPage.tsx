@@ -81,6 +81,7 @@ export function OrdersPage({ onPageChange }: { onPageChange: (page: string) => v
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -98,9 +99,20 @@ export function OrdersPage({ onPageChange }: { onPageChange: (page: string) => v
     }
   };
 
-  const handleCancelOrder = (orderId: string) => {
-    if (confirm("Bạn có chắc chắn muốn hủy đơn hàng này?")) {
-      alert("Tính năng hủy đơn hàng đang được phát triển!");
+  const handleCancelOrder = async (orderId: string) => {
+    const confirmed = window.confirm("Bạn có chắc chắn muốn hủy đơn hàng này?");
+    if (!confirmed) return;
+
+    try {
+      setCancellingId(orderId);
+      await orderService.cancelOrder(orderId);
+      await loadOrders();
+      alert("Đơn hàng đã được hủy thành công");
+    } catch (error: any) {
+      console.error("Error cancelling order:", error);
+      alert(error.response?.data?.message || "Không thể hủy đơn hàng lúc này");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -322,14 +334,15 @@ export function OrdersPage({ onPageChange }: { onPageChange: (page: string) => v
                             <Eye className="w-4 h-4 mr-2" />
                             Xem chi tiết
                           </Button>
-                          {order.status === "pending" && (
+                          {["pending", "processing"].includes(order.status) && (
                             <Button
                               variant="outline"
                               className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
                               onClick={() => handleCancelOrder(order._id)}
+                              disabled={cancellingId === order._id}
                             >
                               <XCircle className="w-4 h-4 mr-2" />
-                              Hủy đơn hàng
+                              {cancellingId === order._id ? "Đang hủy..." : "Hủy đơn hàng"}
                             </Button>
                           )}
                           {order.status === "delivered" && (

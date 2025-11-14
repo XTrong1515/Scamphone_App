@@ -25,6 +25,9 @@ export interface Order {
   totalPrice: number;
   status: 'pending' | 'processing' | 'shipping' | 'delivered' | 'cancelled';
   rejectionReason?: string;
+  cancelReason?: string;
+  cancelledBy?: 'user' | 'admin';
+  cancelledAt?: string;
   isPaid: boolean;
   paidAt?: string;
   isDelivered: boolean;
@@ -75,6 +78,11 @@ export const orderService = {
 
   async rejectOrder(id: string, reason: string) {
     const { data } = await api.put<Order>(`/orders/${id}/reject`, { reason });
+    return data;
+  },
+
+  async cancelOrder(id: string, reason?: string) {
+    const { data } = await api.put<Order>(`/orders/${id}/cancel`, { reason });
     return data;
   }
 };

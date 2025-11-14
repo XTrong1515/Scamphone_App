@@ -2,6 +2,16 @@ import asyncHandler from 'express-async-handler';
 import Product from '../Models/ProductModel.js';
 import slugify from 'slugify';
 
+const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildSearchRegex = (rawQuery = '') => {
+  const normalized = rawQuery.trim().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  const tokens = normalized.split(' ').map(token => escapeRegex(token));
+  const pattern = tokens.join('.*');
+  return new RegExp(pattern, 'i');
+};
+
 // @desc    Fetch all products with filters, pagination, search
 // @route   GET /api/v1/products
 // @access  Public
@@ -240,11 +250,190 @@ const getAdminProducts = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Advanced product search with fuzzy matching
+// @route   GET /api/v1/products/search
+// @access  Public
+const searchProducts = asyncHandler(async (req, res) => {
+  const {
+    q = '',
+    category,
+    brand,
+    priceRange,
+    rating,
+    sortBy = 'relevance',
+    page = 1,
+    limit = 20,
+    status // optional explicit status filter
+  } = req.query;
+
+  const regex = buildSearchRegex(q);
+
+  if (!regex) {
+    return res.status(400).json({ message: 'Vui lòng nhập từ khóa tìm kiếm' });
+  }
+
+  const query = {
+    $or: [
+      { name: regex },
+      { slug: regex },
+      { brand: regex },
+      { description: regex },
+      { 'attributes.name': regex },
+      { 'attributes.values': regex }
+    ]
+  };
+
+  // Only apply status filter if explicitly provided; otherwise include everything except 'inactive'
+  if (status) {
+    query.status = status;
+  } else {
+    query.status = { $ne: 'inactive' };
+  }
+
+  if (category) {
+    query.category = category;
+  }
+
+  if (brand) {
+    const brandList = Array.isArray(brand)
+      ? brand
+      : String(brand)
+          .split(',')
+          .map((b) => b.trim())
+          .filter(Boolean);
+    if (brandList.length) {
+      query.brand = { $in: brandList };
+    }
+  }
+
+  if (priceRange) {
+    const [min, max] = String(priceRange)
+      .split('-')
+      .map((value) => Number(value));
+    query.price = {};
+    if (!Number.isNaN(min)) query.price.$gte = min;
+    if (!Number.isNaN(max)) query.price.$lte = max;
+    if (Object.keys(query.price).length === 0) {
+      delete query.price;
+    }
+  }
+
+  if (rating) {
+    const minRating = Number(rating);
+    if (!Number.isNaN(minRating)) {
+      query.rating = { $gte: minRating };
+    }
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const sortMap = {
+    'price-asc': { price: 1 },
+    'price-desc': { price: -1 },
+    rating: { rating: -1 },
+    newest: { createdAt: -1 }
+  };
+
+  const sortOption = sortMap[sortBy] || { createdAt: -1 };
+
+  const [products, total] = await Promise.all([
+    Product.find(query)
+      .populate('category', 'name')
+      .sort(sortOption)
+      .skip(skip)
+      .limit(Number(limit)),
+    Product.countDocuments(query)
+  ]);
+
+  res.json({
+    products,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / Number(limit))
+  });
+});
+
+// @desc    Get available brands
+// @route   GET /api/v1/products/brands
+// @access  Public
+const getBrands = asyncHandler(async (_req, res) => {
+  const brands = await Product.distinct('brand', {
+    brand: { $ne: null },
+    status: 'active'
+  });
+
+  res.json(brands.filter(Boolean).sort());
+});
+
+// @desc    Get price range of products
+// @route   GET /api/v1/products/price-range
+// @access  Public
+const getPriceRange = asyncHandler(async (_req, res) => {
+  const [result] = await Product.aggregate([
+    { $match: { price: { $gt: 0 } } },
+    {
+      $group: {
+        _id: null,
+        min: { $min: '$price' },
+        max: { $max: '$price' }
+      }
+    }
+  ]);
+
+  res.json({
+    min: result?.min ?? 0,
+    max: result?.max ?? 0
+  });
+});
+
+// @desc    Search suggestions
+// @route   GET /api/v1/products/suggestions
+// @access  Public
+const getSearchSuggestions = asyncHandler(async (req, res) => {
+  const { q = '' } = req.query;
+  const regex = buildSearchRegex(q);
+
+  if (!regex) {
+    return res.json([]);
+  }
+
+  const products = await Product.find({
+    status: 'active',
+    name: regex
+  })
+    .select('name brand')
+    .limit(10);
+
+  const suggestions = [];
+  const seen = new Set();
+
+  products.forEach((product) => {
+    if (product.name && !seen.has(product.name)) {
+      suggestions.push(product.name);
+      seen.add(product.name);
+    }
+    if (product.brand) {
+      const normalizedName = product.name.replace(new RegExp(product.brand, 'i'), '').trim();
+      const brandSuggestion = `${product.brand} ${normalizedName}`.trim();
+      if (brandSuggestion && !seen.has(brandSuggestion)) {
+        suggestions.push(brandSuggestion);
+        seen.add(brandSuggestion);
+      }
+    }
+  });
+
+  res.json(suggestions.slice(0, 10));
+});
+
 export {
   getProducts,
   getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
-  getAdminProducts
+  getAdminProducts,
+  searchProducts,
+  getBrands,
+  getPriceRange,
+  getSearchSuggestions
 };
